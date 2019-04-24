@@ -1,0 +1,53 @@
+service: aws-codesuite-slack-chatops
+
+plugins:
+  - serverless-dotenv-plugin
+
+custom:
+  SLACK_WEBHOOK_URL:        ${env:SLACK_WEBHOOK_URL}
+  SLACK_CHANNEL:            ${env:SLACK_CHANNEL}
+  SLACK_VERIFICATION_TOKEN: ${env:SLACK_VERIFICATION_TOKEN}
+  SNS_TOPIC_ARN:            ${env:SNS_TOPIC_ARN}
+
+provider:
+  name: aws
+  runtime: python3.6
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - codepipeline:PutApprovalResult
+      Resource: "*"
+
+functions:
+  approval_requester:
+    environment:
+      SLACK_WEBHOOK_URL: ${self:custom.SLACK_WEBHOOK_URL}
+      SLACK_CHANNEL: ${self:custom.SLACK_CHANNEL}
+    handler: approval_requester.lambda_handler
+    events:
+      - sns: ${self:custom.SNS_TOPIC_ARN}
+
+  approval_interactive:
+    environment:
+      SLACK_VERIFICATION_TOKEN: ${self:custom.SLACK_VERIFICATION_TOKEN}
+    handler: approval_interactive.lambda_handler
+    events:
+      - http:
+          path: /
+          method: post
+          
+  cloudwatch_event:
+    environment:
+      SLACK_WEBHOOK_URL: ${self:custom.SLACK_WEBHOOK_URL}
+      SLACK_CHANNEL: ${self:custom.SLACK_CHANNEL}
+    handler: cloudwatch_event.lambda_handler
+    reservedConcurrency: 1
+    events:
+      - cloudwatchEvent:
+          event:
+            source:
+              - 'aws.codebuild'
+            detail-type:
+              - 'CodeBuild Build State Change'
+              - 'CodeBuild Build Phase Change'
+              
